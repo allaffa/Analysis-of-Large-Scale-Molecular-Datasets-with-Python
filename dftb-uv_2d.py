@@ -207,10 +207,14 @@ def smooth_spectrum(path, min_energy, max_energy, min_wavelength, max_wavelength
     gauss_sum = list()  # list for the sum of single gaussian spectra = the convoluted spectrum
 
     spectrum_file = path + '/' + 'EXC.DAT'
+    spectrum_file_without_extension = os.path.splitext(spectrum_file)[0]
+    new_spectrum_file = spectrum_file_without_extension + "-smooth.DAT"
 
-    # open a file
-    # check existence
-    try:
+    # Avoids regenerating the data
+    if os.path.isfile(new_spectrum_file):
+        return 1
+
+    if os.path.isfile(spectrum_file):
         with open(spectrum_file, "r") as input_file:
             count_line = 0
             for line in input_file:
@@ -226,23 +230,22 @@ def smooth_spectrum(path, min_energy, max_energy, min_wavelength, max_wavelength
                 count_line = count_line + 1
 
     # file not found -> exit here
-    except IOError:
+    else:
         print(f"'{spectrum_file}'" + " not found", flush=True)
         sys.exit(1)
 
+    smile_string_file = os.path.join(path,dir,'smiles.pdb')
+    mol = MolFromPDBFile(smile_string_file, sanitize=False, proximityBonding=True)
     try:
-        smile_string_file = path + '/' + 'smiles.pdb'
-        mol = MolFromPDBFile(smile_string_file, sanitize=False, proximityBonding=True)
         mol = RemoveAllHs(mol)
+    except:
+        return 0
+    if os.path.isfile(smile_string_file):
         with open(smile_string_file, "r") as input_file:
             smiles_string = MolToSmiles(mol)
-    except IOError:
+    else:
         print(f"'{smile_string_file}'" + " not found", flush=True)
         sys.exit(1)
-    except Exception as e:
-        print("Rank: ", comm_rank, " encountered Exception: ")
-        smiles_string = smile_string_file
-        # comm.Abort(1)
 
     if nm_plot:
         # convert wave number to nm for nm plot
@@ -281,12 +284,15 @@ def smooth_spectrum(path, min_energy, max_energy, min_wavelength, max_wavelength
 
     # plot spectra
     if show_conv_spectrum:
-        filename, file_extension = os.path.splitext(path)
-        mol2d_im = image.imread(f"{filename}/mol_2d_drawing.png")
-        imagebox = OffsetImage(mol2d_im,zoom=0.5)
-        ab = AnnotationBbox(imagebox, (max(plt_range_x)*0.8,max(plt_range_gauss_sum_y)*0.6), frameon = True)
-        ax.add_artist(ab)
-        ax.plot(plt_range_x, plt_range_gauss_sum_y, color="black", linewidth=0.8)
+        try:
+            mol2d_im = image.imread(f"{filename}/mol_2d_drawing.png")
+            imagebox = OffsetImage(mol2d_im,zoom=1.25)
+            #ab = AnnotationBbox(imagebox, (max(plt_range_x)*0.8,max(plt_range_gauss_sum_y)*0.6), frameon = True)
+            ab = AnnotationBbox(imagebox, (0.955, 0.975), xycoords='axes fraction', boxcoords="offset points", pad=0, frameon=True, box_alignment=(1,1))
+            ax.add_artist(ab)
+            # ax.text(0.96, 0.94, f'{args.w_ev}nm', va='bottom', ha='right', transform=ax.transAxes)
+        except:
+            pass
 
     # plot sticks
     if show_sticks:
@@ -361,8 +367,7 @@ def smooth_spectrum(path, min_energy, max_energy, min_wavelength, max_wavelength
         ydata = plt_range_gauss_sum_y
         xlimits = plt.gca().get_xlim()
         try:
-            spectrum_file_without_extension = os.path.splitext(spectrum_file)[0]
-            with open(spectrum_file_without_extension + "-smooth.DAT", "w") as output_file:
+            with open(new_spectrum_file) as output_file:
                 for elements in range(len(xdata)):
                     if xlimits[0] <= xdata[elements] <= xlimits[1]:
                         output_file.write(str(xdata[elements]) + export_delim + str(ydata[elements]) + '\n')
@@ -376,6 +381,7 @@ def smooth_spectrum(path, min_energy, max_energy, min_wavelength, max_wavelength
         plt.show()
 
     plt.close(fig)
+    return 1
 
 
 def smooth_spectra(path, min_energy, max_energy, min_wavelength, max_wavelength):
@@ -399,6 +405,7 @@ def smooth_spectra(path, min_energy, max_energy, min_wavelength, max_wavelength)
         # collect information about molecular structure and chemical composition
         if os.path.exists(path + '/' + dir + '/' + 'EXC.DAT'):
             smooth_spectrum(path + '/' + dir, min_energy, max_energy, min_wavelength, max_wavelength)
+    return 1
 
 
 def draw_2Dmols(path):
@@ -425,26 +432,28 @@ def draw_2Dmols(path):
 
 
 def draw_2Dmol(path):
-    try:
-        smile_string_file = path + '/' + 'smiles.pdb'
+    filename, file_extension = os.path.splitext(path)
+    smile_string_file = os.path.join(path, 'smiles.pdb')
+    mol_string_file = f"{filename}/mol_2d_drawing.png"
+    if os.path.isfile(smile_string_file):
+        if os.path.isfile(mol_string_file):
+            return 1
+        print(f'processing: {mol_string_file}')
         mol = MolFromPDBFile(smile_string_file, sanitize=False, proximityBonding=True)
         with open(smile_string_file, "r") as input_file:
             smiles_string = MolToSmiles(mol)
-        mol = RemoveAllHs(mol)
+        try:
+            mol = RemoveAllHs(mol)
+        except:
+            return 0
         AllChem.Compute2DCoords(mol)
-        if save_moldraw:
-            filename, file_extension = os.path.splitext(path)
-            d = rdMolDraw2D.MolDraw2DCairo(250, 250)
-            rdMolDraw2D.PrepareAndDrawMolecule(d, mol)
-            d.WriteDrawingText(f"{filename}/mol_2d_drawing.png")
-
-    except IOError:
+        d = rdMolDraw2D.MolDraw2DCairo(250, 250)
+        rdMolDraw2D.PrepareAndDrawMolecule(d, mol)
+        d.WriteDrawingText(f"{filename}/mol_2d_drawing.png")
+    else:
         print(f"'{smile_string_file}'" + " not found", flush=True)
         sys.exit(1)
-    except Exception as e:
-        print("Rank: ", comm_rank, " encountered Exception: ")
-        smiles_string = smile_string_file
-        # comm.Abort(1)
+    return 1
 
 
 if __name__ == '__main__':

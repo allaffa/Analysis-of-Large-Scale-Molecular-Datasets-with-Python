@@ -46,8 +46,9 @@ linear_locator = False  # tick locations at the beginning and end of the spectru
 spectrum_title = "Absorption spectrum"  # title
 spectrum_title_weight = "bold"  # weight of the title font: 'normal' | 'bold' | 'heavy' | 'light' | 'ultrabold' | 'ultralight'
 y_label = "intensity"  # label of y-axis
-x_label_eV = r'energy (eV)'  # label of the x-axis - eV
-x_label_nm = r'wavelength (nm)'  # label of the x-axis - nm
+x_label_nm = r"wavelength (nm)"  # label of the x-axis - nm
+x_label_eV = r"energy (eV)"  # label of the x-axis - eV
+x_label_cm_inverse = r"energy (cm$^{-1}$)"  # label of the x-axis - cm^{-1}
 plt_y_lim = 0.4
 figure_dpi = 100  # DPI of the picture
 

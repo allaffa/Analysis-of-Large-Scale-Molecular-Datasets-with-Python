@@ -11,7 +11,7 @@ from mpi4py import MPI
 import math
 import matplotlib.pyplot as plt  # plots
 
-from utils import nsplit, read_orca_output, draw_2Dmols, PlotOptions, plot_spectrum
+from utils import nsplit, read_gaussian_output, draw_2Dmols, PlotOptions, plot_spectrum
 
 plt.rcParams.update({"font.size": 22})
 
@@ -26,12 +26,12 @@ if ORCA_METHOD == "TD-DFT":
 elif ORCA_METHOD == "EOM-CCSD":
     specstring_end = "CD SPECTRUM" # stop reading orca.out from here
 
-w_wn = 1000  # w = line width for broadening - wave numbers, FWHM
+w_wn = 100  # w = line width for broadening - wave numbers, FWHM
 w_nm = 10  # w = line width for broadening - nm, FWHM
 export_delim = " "  # delimiter for data export
 
 # plot config section - configure here
-nm_plot = True  # wavelength plot /nm if True, if False wave number plot either in eV or cm^{-1}
+nm_plot = False  # wavelength plot /nm if True, if False wave number plot /cm-1
 show_single_gauss = True  # show single gauss functions if True
 show_single_gauss_area = True  # show single gauss functions - area plot if True
 show_conv_spectrum = True  # show the convoluted spectra if True (if False peak labels will not be shown)
@@ -52,7 +52,7 @@ figure_dpi = 100  # DPI of the picture
 
 # parse arguments
 parser = argparse.ArgumentParser(
-    prog="orca_uv", description="Easily plot absorption spectra from orca.out"
+    prog="gaussian_vib", description="Easily plot vibrational spectra from Gaussian calcualtions"
 )
 
 # show the matplotlib window
@@ -67,7 +67,7 @@ parser.add_argument(
 
 # plot the wave number spectrum
 parser.add_argument(
-    "-peV", "--ploteV", default=1, action="store_false", help="plot the energy spectrum"
+    "-peV", "--plot_cm-1", default=1, action="store_false", help="plot the energy spectrum"
 )
 
 # change line with (integer) for line broadening - nm
@@ -81,11 +81,11 @@ parser.add_argument(
 
 # change line with (integer) for line broadening - energy
 parser.add_argument(
-    "-weV",
-    "--linewidth_eV",
+    "-wcm_inverse",
+    "--linewidth_cm_inverse",
     type=int,
     default=10,
-    help="line width for broadening - energy in eV",
+    help="line width for broadening - energy in cm$^{-1}$",
 )
 
 # individual x range - start
@@ -117,7 +117,7 @@ save_spectrum = args.nosave
 export_spectrum = args.export
 save_moldraw = args.mdraw
 
-PlotOptions_object = PlotOptions(nm_plot,
+PlotOptions_object_IR = PlotOptions(nm_plot,
                                  show_single_gauss,
                                  show_single_gauss_area,
                                  show_conv_spectrum,
@@ -125,6 +125,7 @@ PlotOptions_object = PlotOptions(nm_plot,
                                  label_peaks,
                                  x_label_nm,
                                  x_label_eV,
+                                 x_label_cm_inverse,
                                  y_label,
                                  plt_y_lim,
                                  minor_ticks,
@@ -136,30 +137,48 @@ PlotOptions_object = PlotOptions(nm_plot,
                                  export_spectrum,
                                  figure_dpi,
                                  export_delim,
-                                 ORCA_METHOD)
+                                 "IR")
+
+PlotOptions_object_Raman = PlotOptions(nm_plot,
+                                 show_single_gauss,
+                                 show_single_gauss_area,
+                                 show_conv_spectrum,
+                                 show_sticks,
+                                 label_peaks,
+                                 x_label_nm,
+                                 x_label_eV,
+                                 x_label_cm_inverse,
+                                 y_label,
+                                 plt_y_lim,
+                                 minor_ticks,
+                                 linear_locator,
+                                 spectrum_title_weight,
+                                 show_grid,
+                                 show_spectrum,
+                                 save_spectrum,
+                                 export_spectrum,
+                                 figure_dpi,
+                                 export_delim,
+                                 "Raman")
+
 
 min_wavelength = float("inf")
 max_wavelength = float("-inf")
 
-def smooth_spectrum(comm, path, dir, min_energy, max_energy, min_wavelength, max_wavelength):
+def smooth_spectrum(comm, path, dir, min_energy, max_energy):
     comm_size = comm.Get_size()
     comm_rank = comm.Get_rank()
 
-    if nm_plot:
-        spectrum_discretization_step = 0.02
-        xmin_spectrum = 0.0  # could be min_wavelength
-        xmax_spectrum = 750  # could be max_wavelength
-    else:
-        spectrum_discretization_step = 0.01
-        xmin_spectrum = 0.0  # could be min_energy
-        xmax_spectrum = math.ceil(max_energy) + spectrum_discretization_step
+    spectrum_discretization_step = 1
+    xmin_spectrum = min_energy  # could be min_energy
+    xmax_spectrum = max_energy
 
-    spectrum_file = path + '/' + dir + '/' + "orca.stdout"
+    spectrum_file = path + '/' + dir + '/' + "Ir-Raman_Intensities.csv"
 
     # open a file
     # check existence
     try:
-        statelist, energylist, intenslist = read_orca_output(spectrum_file, specstring_start, specstring_end)
+        energylist, IR_intenslist, Raman_intenslist = read_gaussian_output(spectrum_file)
 
     # file not found -> exit here
     except IOError:
@@ -167,22 +186,13 @@ def smooth_spectrum(comm, path, dir, min_energy, max_energy, min_wavelength, max
     except Exception as e:
         print("Rank: ", comm_rank, " encountered Exception: ", e, e.args)
 
-    if nm_plot:
-        # convert wave number to nm for nm plot
-        energylist = [1 / wn * 10 ** 7 for wn in energylist]
-        w = w_nm  # use line width for nm axis
-    else:
-        w = w_wn  # use line width for wave number axis
+    w = w_wn  # use line width for wave number axis
 
-    # convert wave number to nm for nm plot
-    valuelist = energylist
-    valuelist.sort()
-    w = w_nm  # use line width for nm axis
-
-    plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, spectrum_discretization_step, valuelist, w, intenslist, PlotOptions_object)
+    plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, spectrum_discretization_step, energylist, w, IR_intenslist, PlotOptions_object_IR)
+    plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, spectrum_discretization_step, energylist, w, Raman_intenslist, PlotOptions_object_Raman)
 
 
-def smooth_spectra(comm, path, min_energy, max_energy, min_wavelength, max_wavelength):
+def smooth_spectra(comm, path, min_energy, max_energy):
     comm.Barrier()
     comm_size = comm.Get_size()
     comm_rank = comm.Get_rank()
@@ -212,23 +222,21 @@ def smooth_spectra(comm, path, min_energy, max_energy, min_wavelength, max_wavel
             flush=True,
         )
         # collect information about molecular structure and chemical composition
-        if os.path.exists(path + "/" + dir + "/" + "orca.stdout"):
+        if os.path.exists(path + "/" + dir + "/" + "Ir-Raman_Intensities.csv"):
             smooth_spectrum(
-                comm, path, dir, min_energy, max_energy, min_wavelength, max_wavelength
+                comm, path, dir, min_energy, max_energy
             )
 
 
 if __name__ == "__main__":
-    path = "/Users/7ml/Documents/SurrogateProject/ElectronicExcitation/GDB-9-Ex-ORCA-EOM-CCSD_subset_selected"
+    path = "/Users/7ml/Documents/SurrogateProject/VibrationalSpectrum/QM9-HQ"
     min_energy = 0.0
-    max_energy = 100.0
-    min_wavelength = 0.0
-    max_wavelength = 750.0
+    max_energy = 4000.0
 
     communicator = MPI.COMM_WORLD
 
     draw_2Dmols(communicator, path, save_moldraw)
-    smooth_spectra(communicator, path, min_energy, max_energy, min_wavelength, max_wavelength)
+    smooth_spectra(communicator, path, min_energy, max_energy)
 
     comm_size = communicator.Get_size()
     comm_rank = communicator.Get_rank()

@@ -155,6 +155,26 @@ def read_orca_output(spectrum_file, specstring_start, specstring_end):
     return statelist, energylist, intenslist
 
 
+def read_gaussian_output(spectrum_file):
+    # global lists
+    energylist = list()  # energy cm-1
+    IR_intenslist = list()  # infra-red intensity
+    Raman_intenslist = list()  # Raman intensity
+    # open a file
+    # check existence
+    with open(spectrum_file, "r") as input_file:
+        for line in input_file:
+            # only recognize lines that start with number
+            # split line into 3 lists mode, energy, intensities
+            # line should start with a number
+            if re.search("\d+,\d+", line):
+                energylist.append(float(line.strip().split(',')[0]))
+                IR_intenslist.append(float(line.strip().split(',')[1]))
+                Raman_intenslist.append(float(line.strip().split(',')[2]))
+
+    return energylist, IR_intenslist, Raman_intenslist
+
+
 def generate_graphdata(pdb_file_name):
     mol = MolFromPDBFile(pdb_file_name, sanitize=False, proximityBonding=True,
                          removeHs=True)  # , sanitize=False , removeHs=False)
@@ -235,7 +255,7 @@ def draw_2Dmol(comm, path, save_moldraw=True):
 
 
 class PlotOptions:
-    def __init__(self, nm_plot, show_single_gauss, show_single_gauss_area, show_conv_spectrum, show_sticks, label_peaks, x_label_nm, x_label_eV, y_label, plt_y_lim, minor_ticks, linear_locator, spectrum_title_weight, show_grid, show_spectrum, save_spectrum, export_spectrum, figure_dpi, export_delim, calculation_type):
+    def __init__(self, nm_plot, show_single_gauss, show_single_gauss_area, show_conv_spectrum, show_sticks, label_peaks, x_label_nm, x_label_eV, x_label_cm_inverse, y_label, plt_y_lim, minor_ticks, linear_locator, spectrum_title_weight, show_grid, show_spectrum, save_spectrum, export_spectrum, figure_dpi, export_delim, calculation_type):
         self.nm_plot = nm_plot
         self.show_single_gauss = show_single_gauss
         self.show_single_gauss_area = show_single_gauss_area
@@ -244,6 +264,7 @@ class PlotOptions:
         self.label_peaks = label_peaks
         self.x_label_nm = x_label_nm
         self.x_label_eV = x_label_eV
+        self.x_label_cm_inverse = x_label_cm_inverse
         self.y_label = y_label
         self.plt_y_lim = plt_y_lim
         self.minor_ticks = minor_ticks
@@ -285,7 +306,7 @@ def plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, 
         # sum of gauss functions
         gauss_sum.append(gauss(intenslist[index], plt_range_x, wn, w))
 
-    # y values of the gauss summation 
+    # y values of the gauss summation
     plt_range_gauss_sum_y = np.sum(gauss_sum, axis=0)
 
     # find peaks scipy function, change height for level of detection
@@ -329,10 +350,13 @@ def plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, 
                             xytext=(0, 5), textcoords='offset points')
 
     # label x axis
-    if PlotOptions_object.nm_plot:
-        ax.set_xlabel(PlotOptions_object.x_label_nm)
+    if ("ORCA" in PlotOptions_object.calculation_type) or ("DFTB" in PlotOptions_object.calculation_type):
+        if PlotOptions_object.nm_plot:
+            ax.set_xlabel(PlotOptions_object.x_label_nm)
+        else:
+            ax.set_xlabel(PlotOptions_object.x_label_eV)
     else:
-        ax.set_xlabel(PlotOptions_object.x_label_eV)
+        ax.set_xlabel(PlotOptions_object.x_label_cm_inverse)
 
     ax.set_ylabel(PlotOptions_object.y_label)  # label y axis
     ax.set_title(f"{PlotOptions_object.calculation_type} " + dir, fontweight=PlotOptions_object.spectrum_title_weight)  # title
@@ -364,12 +388,16 @@ def plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, 
     if PlotOptions_object.save_spectrum:
         filename, file_extension = os.path.splitext(path + '/' + dir)
 
-        if PlotOptions_object.nm_plot:
-            plt.ylim(0.0,PlotOptions_object.plt_y_lim)
-            plt.savefig(f"{filename}/abs_spectrum_nm.png", dpi=PlotOptions_object.figure_dpi)
+        if ("ORCA" in PlotOptions_object.calculation_type) or ("DFTB" in PlotOptions_object.calculation_type):
+            if PlotOptions_object.nm_plot:
+                plt.ylim(0.0,PlotOptions_object.plt_y_lim)
+                plt.savefig(f"{filename}/abs_spectrum_nm.png", dpi=PlotOptions_object.figure_dpi)
+            elif PlotOptions_object.ev_plot:
+                #plt.xlim(2.50,15)
+                plt.savefig(f"{filename}/abs_spectrum_eV.png", dpi=PlotOptions_object.figure_dpi)
         else:
-            #plt.xlim(2.50,15)
-            plt.savefig(f"{filename}/abs_spectrum_eV.png", dpi=PlotOptions_object.figure_dpi)
+            # plt.xlim(2.50,15)
+            plt.savefig(f"{filename}/{PlotOptions_object.calculation_type}_spectrum_cm_inverse.png", dpi=PlotOptions_object.figure_dpi)
 
     # export data
     if PlotOptions_object.export_spectrum:

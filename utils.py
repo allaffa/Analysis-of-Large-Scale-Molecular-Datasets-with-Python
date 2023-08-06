@@ -407,7 +407,7 @@ def plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, 
         ydata = plt_range_gauss_sum_y
         xlimits = plt.gca().get_xlim()
         try:
-            spectrum_file_without_extension = os.path.splitext(spectrum_file)[0]
+            spectrum_file_without_extension = path+'/'+dir+'/'+PlotOptions_object.calculation_type
             with open(spectrum_file_without_extension + "-smooth.DAT", "w") as output_file:
                 for elements in range(len(xdata)):
                     if xlimits[0] <= xdata[elements] <= xlimits[1]:

@@ -31,7 +31,7 @@ w_nm = 10  # w = line width for broadening - nm, FWHM
 export_delim = " "  # delimiter for data export
 
 # plot config section - configure here
-nm_plot = True  # wavelength plot /nm if True, if False wave number plot /cm-1
+nm_plot = True  # wavelength plot /nm if True, if False wave number plot either in eV or cm^{-1}
 show_single_gauss = True  # show single gauss functions if True
 show_single_gauss_area = True  # show single gauss functions - area plot if True
 show_conv_spectrum = True  # show the convoluted spectra if True (if False peak labels will not be shown)
@@ -43,6 +43,7 @@ linear_locator = False  # tick locations at the beginning and end of the spectru
 spectrum_title = "Absorption spectrum"  # title
 spectrum_title_weight = "bold"  # weight of the title font: 'normal' | 'bold' | 'heavy' | 'light' | 'ultrabold' | 'ultralight'
 y_label = "intensity"  # label of y-axis
+x_label_cm_inverse = r"energy (cm$^{-1}$/s)"  # label of the x-axis - cm^{-1}
 x_label_eV = r"energy (eV)"  # label of the x-axis - eV
 x_label_nm = r"wavelength (nm)"  # label of the x-axis - nm
 plt_y_lim = 0.4

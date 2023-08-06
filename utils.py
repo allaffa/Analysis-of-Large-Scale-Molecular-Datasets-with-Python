@@ -284,7 +284,7 @@ def plot_spectrum(comm, path, dir, spectrum_file, xmin_spectrum, xmax_spectrum, 
         # sum of gauss functions
         gauss_sum.append(gauss(intenslist[index], plt_range_x, wn, w))
 
-    # y values of the gauss summation /cm-1
+    # y values of the gauss summation 
     plt_range_gauss_sum_y = np.sum(gauss_sum, axis=0)
 
     # find peaks scipy function, change height for level of detection
